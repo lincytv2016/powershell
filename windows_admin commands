@@ -1,0 +1,60 @@
+#get Ad user list
+Get-ADUser username -Properties * | Select * | ft name
+
+# registring ssm IAMrole to the instance  
+New-SSMActivation -DefaultInstanceName lincy-Prod2-SSM-clent-01 -IamRole lincy-ssm-role -RegistrationLimit 10 –Region us-west-2
+
+# RDP Server Grace Period Check-up
+wmic /namespace:\\root\CIMV2\TerminalServices PATH Win32_TerminalServiceSetting WHERE (__CLASS !="") CALL GetGracePeriodDays
+
+
+#filter the group memebers
+Get-ADGroup -Identity Administrators | Get-ADGroupMember | ft name, objectclass
+
+
+# Volume  Break-Down Details 
+
+Param
+    (
+        [string]$a 
+    )
+$command = "cd "+$a+":\"
+iex $command
+#Write-Host $command
+# Find folders
+$value_type = "GB"
+Write-Output "Note: All data is in GB"
+Get-ChildItem -Recurse | Where-Object { $_.PSIsContainer } |
+# Find cumulative size of the directories and put it into nice objects
+ForEach-Object {
+    New-Object PSObject -Property @{
+        Path = $_.FullName
+        Size = [Math]::Round((Get-ChildItem -Recurse $_.FullName | Measure-Object Length -Sum -ErrorAction SilentlyContinue | Sort-Object -property length).Sum / 1GB, 2)#+" GB"
+    }
+} | sort Size -Descending | select -First 15 |
+# Exclude empty directories
+Where-Object { $_.Size -gt 0 } |
+# Format nicely
+Format-Table -AutoSize
+#######gci -r|?{$_.PSIsContainer}|%{New-Object PSObject -p @{Path=$_.FullName;Size=[Math]::Round((gci -r $_.FullName|measure Length -s -ea 0).Sum/1MB,2)}}|?{$_.Size}|ft -a
+
+# Returns the version of the OS greater that n Windows 2008 R2
+
+$vers=[Environment]::OSVersion.Version -ge (new-object 'Version' 6,1)
+if($vers -contains "True") {
+	Write-Output " Version Greater then Windows 2008 R2"
+}
+else
+{
+	Write-Output " Appling the patches"
+    #Write Code for Updateing the windows server
+    #Get-HotFix.ps1
+}
+
+
+#datadog agent install
+
+$url = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-latest.msi"
+$output = "C:\Windows\Temp\ddagent-cli-latest.msi"
+Invoke-WebRequest -Uri $url -OutFile $output
+msiexec /qn /i C:\Windows\Temp\ddagent-cli-latest.msi APIKEY="***********"
